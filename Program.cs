@@ -9,7 +9,7 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(
             "http://localhost:5173",
-            "https://zippy-pegasus-18fdc4.netlify.app/"
+            "https://zippy-pegasus-18fdc4.netlify.app"
         )
         .AllowAnyHeader()
         .AllowAnyMethod();

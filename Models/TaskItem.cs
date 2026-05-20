@@ -15,5 +15,10 @@
         public DateTime? DueDate { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+
+        // One to Many Rel
+        public int UserId { get; set; }
+        public User? User { get; set; }
     }
 }

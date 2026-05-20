@@ -1,5 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using TaskManager.API.Data;
 using TaskManager.API.Models;
 
@@ -7,6 +9,7 @@ namespace TaskManager.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class TasksController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -16,18 +19,28 @@ namespace TaskManager.API.Controllers
             _context = context;
         }
 
+        private int GetUserId()
+        {
+            return int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        }
+
         // GET: api/tasks
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TaskItem>>> GetTasks()
         {
-            return await _context.Tasks.ToListAsync();
+            var userId = GetUserId();
+            return await _context.Tasks
+                .Where(t => t.UserId == userId)
+                .ToListAsync();
         }
 
         // GET: api/tasks/1
         [HttpGet("{id}")]
         public async Task<ActionResult<TaskItem>> GetTask(int id)
         {
-            var task = await _context.Tasks.FindAsync(id);
+            var userId = GetUserId();
+            var task = await _context.Tasks
+                .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
             if (task == null)
                 return NotFound();
@@ -37,9 +50,20 @@ namespace TaskManager.API.Controllers
 
         // POST: api/tasks
         [HttpPost]
-        public async Task<ActionResult<TaskItem>> CreateTask(TaskItem task)
+        
+        public async Task<ActionResult<TaskItem>> CreateTask(CreateTaskRequest request)
         {
-            task.CreatedAt = DateTime.UtcNow;
+            var task = new TaskItem
+            {
+                Title = request.Title,
+                Description = request.Description,
+                IsCompleted = request.IsCompleted,
+                Priority = request.Priority,
+                DueDate = request.DueDate,
+                UserId = GetUserId(),
+                CreatedAt = DateTime.UtcNow
+            };
+
             _context.Tasks.Add(task);
             await _context.SaveChangesAsync();
 
@@ -50,12 +74,24 @@ namespace TaskManager.API.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateTask(int id, TaskItem task)
         {
+            var userId = GetUserId();
+
             if (id != task.Id)
                 return BadRequest();
 
-            _context.Entry(task).State = EntityState.Modified;
-            await _context.SaveChangesAsync();
+            var existing = await _context.Tasks
+                .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
+            if (existing == null)
+                return NotFound();
+
+            existing.Title = task.Title;
+            existing.Description = task.Description;
+            existing.IsCompleted = task.IsCompleted;
+            existing.Priority = task.Priority;
+            existing.DueDate = task.DueDate;
+
+            await _context.SaveChangesAsync();
             return NoContent();
         }
 
@@ -63,7 +99,9 @@ namespace TaskManager.API.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTask(int id)
         {
-            var task = await _context.Tasks.FindAsync(id);
+            var userId = GetUserId();
+            var task = await _context.Tasks
+                .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
             if (task == null)
                 return NotFound();
@@ -73,5 +111,14 @@ namespace TaskManager.API.Controllers
 
             return NoContent();
         }
+    }
+
+    public class CreateTaskRequest
+    {
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public bool IsCompleted { get; set; } = false;
+        public string Priority { get; set; } = "Medium";
+        public DateTime? DueDate { get; set; }
     }
 }

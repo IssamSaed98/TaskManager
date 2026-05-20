@@ -19,10 +19,11 @@ namespace TaskManager.API.Controllers
         public IActionResult Register([FromBody] RegisterRequest request)
         {
             var user = _authService.Register(
-                request.Username,
-                request.Email,
-                request.Password
-            );
+     request.Username,
+     request.Email,
+     request.Password,
+     request.Role
+ );
 
             if (user == null)
                 return BadRequest("الإيميل مسجل مسبقاً");
@@ -42,12 +43,12 @@ namespace TaskManager.API.Controllers
             return Ok(new { token });
         }
     }
-
     public class RegisterRequest
     {
         public string Username { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
+        public string Role { get; set; } = "Employee";
     }
 
     public class LoginRequest

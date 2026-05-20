@@ -18,9 +18,8 @@ namespace TaskManager.API.Services
             _config = config;
         }
 
-        public User? Register(string username, string email, string password)
+        public User? Register(string username, string email, string password, string role = "Employee")
         {
-            // تحقق إن الإيميل ما مسجل
             if (_context.Users.Any(u => u.Email == email))
                 return null;
 
@@ -29,7 +28,7 @@ namespace TaskManager.API.Services
                 Username = username,
                 Email = email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
-                Role = "Employee"
+                Role = role
             };
 
             _context.Users.Add(user);

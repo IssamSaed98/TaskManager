@@ -29,6 +29,11 @@ namespace TaskManager.API.Controllers
         public async Task<ActionResult<IEnumerable<TaskItem>>> GetTasks()
         {
             var userId = GetUserId();
+            var role = User.FindFirstValue(ClaimTypes.Role);
+
+            if (role == "Admin")
+                return await _context.Tasks.ToListAsync();
+
             return await _context.Tasks
                 .Where(t => t.UserId == userId)
                 .ToListAsync();

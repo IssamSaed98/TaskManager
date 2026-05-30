@@ -1,9 +1,9 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using TaskManager.API.Data;
 using TaskManager.API.Models;
-using System.Security.Claims;
 
 namespace TaskManager.API.Controllers
 {
@@ -19,12 +19,20 @@ namespace TaskManager.API.Controllers
             _context = context;
         }
 
+        private int? GetOrgId()
+        {
+            var val = User.FindFirstValue("OrganizationId");
+            return string.IsNullOrEmpty(val) ? null : int.Parse(val);
+        }
+
         // GET: api/admin/users
         [HttpGet("users")]
         public async Task<IActionResult> GetUsers()
         {
+            var orgId = GetOrgId();
+
             var users = await _context.Users
-                .Where(u => u.Role == "Employee")
+                .Where(u => u.Role == "Employee" && u.OrganizationId == orgId)
                 .Select(u => new
                 {
                     u.Id,
@@ -43,8 +51,10 @@ namespace TaskManager.API.Controllers
         [HttpGet("users/{id}/tasks")]
         public async Task<IActionResult> GetUserTasks(int id)
         {
+            var orgId = GetOrgId();
+
             var tasks = await _context.Tasks
-                .Where(t => t.UserId == id)
+                .Where(t => t.UserId == id && t.OrganizationId == orgId)
                 .ToListAsync();
 
             return Ok(tasks);
@@ -54,6 +64,8 @@ namespace TaskManager.API.Controllers
         [HttpPost("tasks")]
         public async Task<IActionResult> CreateTaskForUser([FromBody] AdminCreateTaskRequest request)
         {
+            var orgId = GetOrgId();
+
             var task = new TaskItem
             {
                 Title = request.Title,
@@ -62,6 +74,7 @@ namespace TaskManager.API.Controllers
                 DueDate = request.DueDate,
                 IsCompleted = false,
                 UserId = request.UserId,
+                OrganizationId = orgId,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -69,6 +82,21 @@ namespace TaskManager.API.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(task);
+        }
+
+        // GET: api/admin/organization
+        [HttpGet("organization")]
+        public async Task<IActionResult> GetOrganization()
+        {
+            var orgId = GetOrgId();
+
+            var org = await _context.Organizations
+                .FirstOrDefaultAsync(o => o.Id == orgId);
+
+            if (org == null)
+                return NotFound();
+
+            return Ok(org);
         }
     }
 

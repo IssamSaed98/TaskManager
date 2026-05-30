@@ -19,9 +19,13 @@ namespace TaskManager.API.Controllers
             _context = context;
         }
 
-        private int GetUserId()
+        private int GetUserId() =>
+            int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        private int? GetOrgId()
         {
-            return int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var val = User.FindFirstValue("OrganizationId");
+            return string.IsNullOrEmpty(val) ? null : int.Parse(val);
         }
 
         // GET: api/tasks
@@ -29,10 +33,13 @@ namespace TaskManager.API.Controllers
         public async Task<ActionResult<IEnumerable<TaskItem>>> GetTasks()
         {
             var userId = GetUserId();
+            var orgId = GetOrgId();
             var role = User.FindFirstValue(ClaimTypes.Role);
 
-            if (role == "Admin")
-                return await _context.Tasks.ToListAsync();
+            if (role == "Admin" && orgId.HasValue)
+                return await _context.Tasks
+                    .Where(t => t.OrganizationId == orgId)
+                    .ToListAsync();
 
             return await _context.Tasks
                 .Where(t => t.UserId == userId)
@@ -55,7 +62,6 @@ namespace TaskManager.API.Controllers
 
         // POST: api/tasks
         [HttpPost]
-        
         public async Task<ActionResult<TaskItem>> CreateTask(CreateTaskRequest request)
         {
             var task = new TaskItem
@@ -66,6 +72,7 @@ namespace TaskManager.API.Controllers
                 Priority = request.Priority,
                 DueDate = request.DueDate,
                 UserId = GetUserId(),
+                OrganizationId = GetOrgId(),
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -105,8 +112,17 @@ namespace TaskManager.API.Controllers
         public async Task<IActionResult> DeleteTask(int id)
         {
             var userId = GetUserId();
-            var task = await _context.Tasks
-                .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+            var orgId = GetOrgId();
+            var role = User.FindFirstValue(ClaimTypes.Role);
+
+            TaskItem? task;
+
+            if (role == "Admin")
+                task = await _context.Tasks
+                    .FirstOrDefaultAsync(t => t.Id == id && t.OrganizationId == orgId);
+            else
+                task = await _context.Tasks
+                    .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
             if (task == null)
                 return NotFound();

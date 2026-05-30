@@ -19,16 +19,22 @@ namespace TaskManager.API.Controllers
         public IActionResult Register([FromBody] RegisterRequest request)
         {
             var user = _authService.Register(
-     request.Username,
-     request.Email,
-     request.Password,
-     request.Role
- );
+                request.Username,
+                request.Email,
+                request.Password,
+                request.Role,
+                request.OrganizationName,
+                request.OrganizationId
+            );
 
             if (user == null)
                 return BadRequest("الإيميل مسجل مسبقاً");
 
-            return Ok(new { message = "تم التسجيل بنجاح" });
+            return Ok(new
+            {
+                message = "تم التسجيل بنجاح",
+                organizationId = user.OrganizationId
+            });
         }
 
         // POST: api/auth/login
@@ -43,12 +49,15 @@ namespace TaskManager.API.Controllers
             return Ok(new { token });
         }
     }
+
     public class RegisterRequest
     {
         public string Username { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string Role { get; set; } = "Employee";
+        public string? OrganizationName { get; set; }
+        public int? OrganizationId { get; set; }
     }
 
     public class LoginRequest

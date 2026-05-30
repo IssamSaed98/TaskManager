@@ -18,17 +18,38 @@ namespace TaskManager.API.Services
             _config = config;
         }
 
-        public User? Register(string username, string email, string password, string role = "Employee")
+        public User? Register(string username, string email, string password, string role = "Employee", string? organizationName = null, int? organizationId = null)
         {
             if (_context.Users.Any(u => u.Email == email))
                 return null;
+
+            int? orgId = null;
+
+            // لو مدير — ننشئ منظمة جديدة
+            if (role == "Admin" && !string.IsNullOrEmpty(organizationName))
+            {
+                var org = new Organization
+                {
+                    Name = organizationName,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.Organizations.Add(org);
+                _context.SaveChanges();
+                orgId = org.Id;
+            }
+            // لو موظف — ينتمي لمنظمة موجودة
+            else if (role == "Employee" && organizationId.HasValue)
+            {
+                orgId = organizationId;
+            }
 
             var user = new User
             {
                 Username = username,
                 Email = email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
-                Role = role
+                Role = role,
+                OrganizationId = orgId
             };
 
             _context.Users.Add(user);
@@ -58,6 +79,7 @@ namespace TaskManager.API.Services
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Email, user.Email),
                 new Claim(ClaimTypes.Role, user.Role),
+                new Claim("OrganizationId", user.OrganizationId?.ToString() ?? ""),
             };
 
             var token = new JwtSecurityToken(

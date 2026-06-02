@@ -15,7 +15,8 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(
             "http://localhost:5173",
             "https://zippy-pegasus-18fdc4.netlify.app",
-            "https://helpful-fox-75df6f.netlify.app"
+            "https://helpful-fox-75df6f.netlify.app",
+            "https://task-manager-frontend-seven-zeta.vercel.app"
         )
         .AllowAnyHeader()
         .AllowAnyMethod();

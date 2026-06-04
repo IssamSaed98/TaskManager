@@ -104,10 +104,11 @@ namespace TaskManager.API.Controllers
 
             // أرسل إشعار لكل موظفين المنظمة بعد حفظ الحدث
             await _notifications.SendToOrganization(
-                orgId.Value,
-                userId,
-                "📅 " + ev.Title,
-                $"فعالية جديدة بتاريخ {ev.EventDate:dd/MM/yyyy}");
+     orgId.Value,
+     userId,
+     "📅 " + ev.Title,
+     $"Neue Veranstaltung am {ev.EventDate:dd.MM.yyyy}"
+ );
 
             return Ok(ev);
         }

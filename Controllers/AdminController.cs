@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using TaskManager.API.Data;
 using TaskManager.API.Models;
+using TaskManager.API.Services;
 
 namespace TaskManager.API.Controllers
 {
@@ -13,10 +14,12 @@ namespace TaskManager.API.Controllers
     public class AdminController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly NotificationService _notifications;
 
-        public AdminController(AppDbContext context)
+        public AdminController(AppDbContext context, NotificationService notifications)
         {
             _context = context;
+            _notifications = notifications;
         }
 
         private int? GetOrgId()
@@ -79,11 +82,19 @@ namespace TaskManager.API.Controllers
             };
 
             _context.Tasks.Add(task);
+
+            // 1. حفظ المهمة أولاً في قاعدة البيانات
             await _context.SaveChangesAsync();
+
+            // 2. إرسال الإشعار للمستخدم بعد نجاح الحفظ
+            await _notifications.SendToUser(
+                request.UserId,
+                "📋 Neue Aufgabe",
+                $"Sie haben eine neue Aufgabe: {task.Title}"
+            );
 
             return Ok(task);
         }
-
         // GET: api/admin/organization
         [HttpGet("organization")]
         public async Task<IActionResult> GetOrganization()

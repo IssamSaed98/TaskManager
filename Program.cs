@@ -73,6 +73,7 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 });
+builder.Services.AddScoped<NotificationService>();
 
 var app = builder.Build();
 

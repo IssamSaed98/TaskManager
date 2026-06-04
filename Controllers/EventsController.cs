@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using TaskManager.API.Data;
 using TaskManager.API.Models;
+using TaskManager.API.Services;
 
 namespace TaskManager.API.Controllers
 {
@@ -13,10 +14,13 @@ namespace TaskManager.API.Controllers
     public class EventsController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly NotificationService _notifications;
 
-        public EventsController(AppDbContext context)
+        // تعديل الكونستركتور لحقن خدمة الإشعارات
+        public EventsController(AppDbContext context, NotificationService notifications)
         {
             _context = context;
+            _notifications = notifications;
         }
 
         private int GetUserId() =>
@@ -98,6 +102,13 @@ namespace TaskManager.API.Controllers
             _context.Events.Add(ev);
             await _context.SaveChangesAsync();
 
+            // أرسل إشعار لكل موظفين المنظمة بعد حفظ الحدث
+            await _notifications.SendToOrganization(
+                orgId.Value,
+                userId,
+                "📅 " + ev.Title,
+                $"فعالية جديدة بتاريخ {ev.EventDate:dd/MM/yyyy}");
+
             return Ok(ev);
         }
 
@@ -142,6 +153,13 @@ namespace TaskManager.API.Controllers
 
             response.IsApproved = true;
             await _context.SaveChangesAsync();
+
+            // أرسل إشعار للموظف المقبول بعد حفظ التعديلات
+            var eventInfo = await _context.Events.FindAsync(id);
+            await _notifications.SendToUser(
+                userId,
+                "✅ تمت الموافقة على حضورك",
+                $"تمت الموافقة على مشاركتك في: {eventInfo?.Title}");
 
             return Ok(new { message = "Approved" });
         }

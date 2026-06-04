@@ -14,7 +14,7 @@ namespace TaskManager.API.Data
         public DbSet<Organization> Organizations { get; set; }
         public DbSet<Event> Events { get; set; }
         public DbSet<EventResponse> EventResponses { get; set; }
-
+        public DbSet<PushSubscription> PushSubscriptions { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<TaskItem>()
@@ -58,6 +58,13 @@ namespace TaskManager.API.Data
                 .WithMany()
                 .HasForeignKey(r => r.UserId)
                 .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<PushSubscription>()
+          .HasOne(p => p.User)
+          .WithMany()
+          .HasForeignKey(p => p.UserId)
+          .OnDelete(DeleteBehavior.Cascade);
         }
     }
+
 }

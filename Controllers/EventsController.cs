@@ -16,7 +16,6 @@ namespace TaskManager.API.Controllers
         private readonly AppDbContext _context;
         private readonly NotificationService _notifications;
 
-        // تعديل الكونستركتور لحقن خدمة الإشعارات
         public EventsController(AppDbContext context, NotificationService notifications)
         {
             _context = context;
@@ -35,7 +34,6 @@ namespace TaskManager.API.Controllers
         private string GetRole() =>
             User.FindFirstValue(ClaimTypes.Role) ?? "Employee";
 
-        // GET: api/events — كل أحداث المنظمة
         [HttpGet]
         public async Task<IActionResult> GetEvents()
         {
@@ -77,7 +75,6 @@ namespace TaskManager.API.Controllers
             return Ok(events);
         }
 
-        // POST: api/events — المدير ينشئ حدث
         [HttpPost]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CreateEvent([FromBody] CreateEventRequest request)
@@ -102,18 +99,17 @@ namespace TaskManager.API.Controllers
             _context.Events.Add(ev);
             await _context.SaveChangesAsync();
 
-            // أرسل إشعار لكل موظفين المنظمة بعد حفظ الحدث
+            // إشعار لكل موظفي المنظمة
             await _notifications.SendToOrganization(
-     orgId.Value,
-     userId,
-     "📅 " + ev.Title,
-     $"Neue Veranstaltung am {ev.EventDate:dd.MM.yyyy}"
- );
+                orgId.Value,
+                userId,
+                "📅 " + ev.Title,
+                $"Neue Veranstaltung am {ev.EventDate:dd.MM.yyyy HH:mm}"
+            );
 
             return Ok(ev);
         }
 
-        // POST: api/events/{id}/respond — الموظف يرد
         [HttpPost("{id}/respond")]
         public async Task<IActionResult> Respond(int id, [FromBody] RespondRequest request)
         {
@@ -139,10 +135,36 @@ namespace TaskManager.API.Controllers
             }
 
             await _context.SaveChangesAsync();
+
+            // إشعار للمدير لما يرد موظف
+            if (request.Status == "Available")
+            {
+                var ev = await _context.Events
+                    .Include(e => e.Organization)
+                    .FirstOrDefaultAsync(e => e.Id == id);
+
+                if (ev != null)
+                {
+                    var respondingUser = await _context.Users.FindAsync(userId);
+                    var adminIds = _context.Users
+                        .Where(u => u.OrganizationId == ev.OrganizationId && u.Role == "Admin")
+                        .Select(u => u.Id)
+                        .ToList();
+
+                    foreach (var adminId in adminIds)
+                    {
+                        await _notifications.SendToUser(
+                            adminId,
+                            "✅ Neue Antwort",
+                            $"{respondingUser?.Username} ist verfügbar für: {ev.Title}"
+                        );
+                    }
+                }
+            }
+
             return Ok(new { message = "Response saved" });
         }
 
-        // POST: api/events/{id}/approve/{userId} — المدير يوافق
         [HttpPost("{id}/approve/{userId}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Approve(int id, int userId)
@@ -155,17 +177,17 @@ namespace TaskManager.API.Controllers
             response.IsApproved = true;
             await _context.SaveChangesAsync();
 
-            // أرسل إشعار للموظف المقبول بعد حفظ التعديلات
+            // إشعار للموظف المقبول
             var eventInfo = await _context.Events.FindAsync(id);
             await _notifications.SendToUser(
                 userId,
-                "✅ تمت الموافقة على حضورك",
-                $"تمت الموافقة على مشاركتك في: {eventInfo?.Title}");
+                "✅ Teilnahme bestätigt!",
+                $"Ihre Teilnahme wurde bestätigt für: {eventInfo?.Title}"
+            );
 
             return Ok(new { message = "Approved" });
         }
 
-        // DELETE: api/events/{id}/remove/{userId} — المدير يزيل
         [HttpDelete("{id}/remove/{userId}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Remove(int id, int userId)
@@ -182,7 +204,6 @@ namespace TaskManager.API.Controllers
             return Ok(new { message = "Removed" });
         }
 
-        // DELETE: api/events/{id} — المدير يحذف الحدث
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteEvent(int id)

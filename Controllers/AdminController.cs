@@ -28,12 +28,10 @@ namespace TaskManager.API.Controllers
             return string.IsNullOrEmpty(val) ? null : int.Parse(val);
         }
 
-        // GET: api/admin/users
         [HttpGet("users")]
         public async Task<IActionResult> GetUsers()
         {
             var orgId = GetOrgId();
-
             var users = await _context.Users
                 .Where(u => u.Role == "Employee" && u.OrganizationId == orgId)
                 .Select(u => new
@@ -50,12 +48,10 @@ namespace TaskManager.API.Controllers
             return Ok(users);
         }
 
-        // GET: api/admin/users/{id}/tasks
         [HttpGet("users/{id}/tasks")]
         public async Task<IActionResult> GetUserTasks(int id)
         {
             var orgId = GetOrgId();
-
             var tasks = await _context.Tasks
                 .Where(t => t.UserId == id && t.OrganizationId == orgId)
                 .ToListAsync();
@@ -63,7 +59,6 @@ namespace TaskManager.API.Controllers
             return Ok(tasks);
         }
 
-        // POST: api/admin/tasks
         [HttpPost("tasks")]
         public async Task<IActionResult> CreateTaskForUser([FromBody] AdminCreateTaskRequest request)
         {
@@ -82,11 +77,9 @@ namespace TaskManager.API.Controllers
             };
 
             _context.Tasks.Add(task);
-
-            // 1. حفظ المهمة أولاً في قاعدة البيانات
             await _context.SaveChangesAsync();
 
-            // 2. إرسال الإشعار للمستخدم بعد نجاح الحفظ
+            // إشعار للموظف
             await _notifications.SendToUser(
                 request.UserId,
                 "📋 Neue Aufgabe",
@@ -95,18 +88,15 @@ namespace TaskManager.API.Controllers
 
             return Ok(task);
         }
-        // GET: api/admin/organization
+
         [HttpGet("organization")]
         public async Task<IActionResult> GetOrganization()
         {
             var orgId = GetOrgId();
-
             var org = await _context.Organizations
                 .FirstOrDefaultAsync(o => o.Id == orgId);
 
-            if (org == null)
-                return NotFound();
-
+            if (org == null) return NotFound();
             return Ok(org);
         }
     }

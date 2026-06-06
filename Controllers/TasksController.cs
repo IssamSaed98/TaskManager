@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using TaskManager.API.Data;
 using TaskManager.API.Models;
+using TaskManager.API.Services;
 
 namespace TaskManager.API.Controllers
 {
@@ -13,10 +14,12 @@ namespace TaskManager.API.Controllers
     public class TasksController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly RealtimeService _realtime;
 
-        public TasksController(AppDbContext context)
+        public TasksController(AppDbContext context, RealtimeService realtime)
         {
             _context = context;
+            _realtime = realtime;
         }
 
         private int GetUserId() =>
@@ -104,8 +107,13 @@ namespace TaskManager.API.Controllers
             existing.DueDate = task.DueDate;
 
             await _context.SaveChangesAsync();
+
+            // إرسال إشعار لحظي عند تحديث المهمة
+            await _realtime.NotifyTaskUpdated(existing.OrganizationId ?? 0, existing);
+
             return NoContent();
         }
+
 
         // DELETE: api/tasks/1
         [HttpDelete("{id}")]
@@ -129,7 +137,7 @@ namespace TaskManager.API.Controllers
 
             _context.Tasks.Remove(task);
             await _context.SaveChangesAsync();
-
+            await _realtime.NotifyTaskDeleted(task.OrganizationId ?? 0, id);
             return NoContent();
         }
     }

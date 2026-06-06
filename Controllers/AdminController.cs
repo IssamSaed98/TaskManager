@@ -15,11 +15,13 @@ namespace TaskManager.API.Controllers
     {
         private readonly AppDbContext _context;
         private readonly NotificationService _notifications;
+        private readonly RealtimeService _realtime;
 
-        public AdminController(AppDbContext context, NotificationService notifications)
+        public AdminController(AppDbContext context, NotificationService notifications, RealtimeService realtime)
         {
             _context = context;
             _notifications = notifications;
+            _realtime = realtime;
         }
 
         private int? GetOrgId()
@@ -79,7 +81,10 @@ namespace TaskManager.API.Controllers
             _context.Tasks.Add(task);
             await _context.SaveChangesAsync();
 
-            // إشعار للموظف
+            // 1. إرسال إشعار لحظي عبر SignalR (Realtime)
+            await _realtime.NotifyTaskAdded(orgId ?? 0, task);
+
+            // 2. إرسال إشعار دفع للموظف (Push notification)
             await _notifications.SendToUser(
                 request.UserId,
                 "📋 Neue Aufgabe",
@@ -88,6 +93,7 @@ namespace TaskManager.API.Controllers
 
             return Ok(task);
         }
+
 
         [HttpGet("organization")]
         public async Task<IActionResult> GetOrganization()

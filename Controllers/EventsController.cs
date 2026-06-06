@@ -15,11 +15,13 @@ namespace TaskManager.API.Controllers
     {
         private readonly AppDbContext _context;
         private readonly NotificationService _notifications;
+        private readonly RealtimeService _realtime;
 
-        public EventsController(AppDbContext context, NotificationService notifications)
+        public EventsController(AppDbContext context, NotificationService notifications, RealtimeService realtime)
         {
             _context = context;
             _notifications = notifications;
+            _realtime = realtime;
         }
 
         private int GetUserId() =>
@@ -99,6 +101,9 @@ namespace TaskManager.API.Controllers
             _context.Events.Add(ev);
             await _context.SaveChangesAsync();
 
+            await _realtime.NotifyEventCreated(orgId.Value, ev);
+            await _notifications.SendToOrganization(orgId.Value, userId, "📅 " + ev.Title,
+                $"Neue Veranstaltung am {ev.EventDate:dd.MM.yyyy HH:mm}");
             // إشعار لكل موظفي المنظمة
             await _notifications.SendToOrganization(
                 orgId.Value,
@@ -135,6 +140,9 @@ namespace TaskManager.API.Controllers
             }
 
             await _context.SaveChangesAsync();
+            var updatedEvent = await _context.Events.FindAsync(id);
+            await _realtime.NotifyEventResponseUpdated(updatedEvent?.OrganizationId ?? 0, 
+                new { eventId = id, userId, status = request.Status });
 
             // إشعار للمدير لما يرد موظف
             if (request.Status == "Available")
@@ -179,11 +187,8 @@ namespace TaskManager.API.Controllers
 
             // إشعار للموظف المقبول
             var eventInfo = await _context.Events.FindAsync(id);
-            await _notifications.SendToUser(
-                userId,
-                "✅ Teilnahme bestätigt!",
-                $"Ihre Teilnahme wurde bestätigt für: {eventInfo?.Title}"
-            );
+            await _realtime.NotifyEventApproved(eventInfo?.OrganizationId ?? 0, new { eventId = id, userId, approved = true });
+            await _notifications.SendToUser(userId, "✅ Teilnahme bestätigt!", $"Ihre Teilnahme wurde bestätigt für: {eventInfo?.Title}");
 
             return Ok(new { message = "Approved" });
         }

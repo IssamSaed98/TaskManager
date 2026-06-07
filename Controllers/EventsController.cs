@@ -36,6 +36,30 @@ namespace TaskManager.API.Controllers
         private string GetRole() =>
             User.FindFirstValue(ClaimTypes.Role) ?? "Employee";
 
+
+        [HttpGet("my-stats")]
+        public async Task<IActionResult> GetMyStats()
+        {
+            var userId = GetUserId();
+            var orgId = GetOrgId();
+
+            var allEvents = await _context.Events
+                .Where(e => e.OrganizationId == orgId)
+                .ToListAsync();
+
+            var myResponses = await _context.EventResponses
+                .Where(r => r.UserId == userId)
+                .ToListAsync();
+
+            var attended = myResponses.Count(r => r.IsApproved);
+            var pending = allEvents.Count(e => !myResponses.Any(r => r.EventId == e.Id));
+
+            return Ok(new { attended, pending });
+        }
+
+
+
+
         [HttpGet]
         public async Task<IActionResult> GetEvents()
         {
@@ -216,6 +240,11 @@ namespace TaskManager.API.Controllers
         }
     }
 
+
+
+
+
+
     public class CreateEventRequest
     {
         public string Title { get; set; } = string.Empty;
@@ -229,4 +258,6 @@ namespace TaskManager.API.Controllers
     {
         public string Status { get; set; } = "Available";
     }
+
+
 }

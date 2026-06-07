@@ -24,10 +24,10 @@ namespace TaskManager.API.Data
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<User>()
-                .HasOne(u => u.Organization)
-                .WithMany(o => o.Users)
-                .HasForeignKey(u => u.OrganizationId)
-                .OnDelete(DeleteBehavior.SetNull);
+    .HasOne(u => u.Organization)
+    .WithMany(o => o.Users)
+    .HasForeignKey(u => u.OrganizationId)
+    .OnDelete(DeleteBehavior.SetNull);
 
             modelBuilder.Entity<TaskItem>()
                 .HasOne(t => t.Organization)

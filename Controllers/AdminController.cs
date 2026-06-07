@@ -63,12 +63,26 @@ namespace TaskManager.API.Controllers
             var user = await _context.Users
                 .FirstOrDefaultAsync(u => u.Id == id && u.OrganizationId == orgId && u.Role == "Employee");
 
-            if (user == null) return NotFound();
+            if (user == null) return NotFound(new { message = "User not found" });
 
+            // احذف المهام أولاً
+            var tasks = _context.Tasks.Where(t => t.UserId == id);
+            _context.Tasks.RemoveRange(tasks);
+
+            // احذف ردود الأحداث
+            var responses = _context.EventResponses.Where(r => r.UserId == id);
+            _context.EventResponses.RemoveRange(responses);
+
+            // احذف الاشتراكات
+            var subscriptions = _context.PushSubscriptions.Where(s => s.UserId == id);
+            _context.PushSubscriptions.RemoveRange(subscriptions);
+
+            // احذف المستخدم
             _context.Users.Remove(user);
+
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "User deleted" });
+            return Ok(new { message = "User deleted successfully" });
         }
 
 

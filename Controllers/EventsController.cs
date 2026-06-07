@@ -115,40 +115,33 @@ namespace TaskManager.API.Controllers
             return Ok(ev);
         }
 
+
         [HttpPost("{id}/respond")]
         public async Task<IActionResult> Respond(int id, [FromBody] RespondRequest request)
         {
             var userId = GetUserId();
 
+            // تحقق إذا رد مسبقاً — لا يسمح بالتعديل
             var existing = await _context.EventResponses
                 .FirstOrDefaultAsync(r => r.EventId == id && r.UserId == userId);
 
             if (existing != null)
+                return BadRequest(new { message = "Sie haben bereits geantwortet. Eine Änderung ist nicht möglich." });
+
+            _context.EventResponses.Add(new EventResponse
             {
-                existing.Status = request.Status;
-                existing.RespondedAt = DateTime.UtcNow;
-            }
-            else
-            {
-                _context.EventResponses.Add(new EventResponse
-                {
-                    EventId = id,
-                    UserId = userId,
-                    Status = request.Status,
-                    RespondedAt = DateTime.UtcNow
-                });
-            }
+                EventId = id,
+                UserId = userId,
+                Status = request.Status,
+                RespondedAt = DateTime.UtcNow
+            });
 
             await _context.SaveChangesAsync();
-            var updatedEvent = await _context.Events.FindAsync(id);
-            await _realtime.NotifyEventResponseUpdated(updatedEvent?.OrganizationId ?? 0, 
-                new { eventId = id, userId, status = request.Status });
 
-            // إشعار للمدير لما يرد موظف
+            // إشعار للمدير
             if (request.Status == "Available")
             {
                 var ev = await _context.Events
-                    .Include(e => e.Organization)
                     .FirstOrDefaultAsync(e => e.Id == id);
 
                 if (ev != null)

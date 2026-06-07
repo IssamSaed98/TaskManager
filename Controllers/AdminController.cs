@@ -50,6 +50,29 @@ namespace TaskManager.API.Controllers
             return Ok(users);
         }
 
+
+
+
+
+
+        [HttpDelete("users/{id}")]
+        public async Task<IActionResult> DeleteUser(int id)
+        {
+            var orgId = GetOrgId();
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == id && u.OrganizationId == orgId && u.Role == "Employee");
+
+            if (user == null) return NotFound();
+
+            _context.Users.Remove(user);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "User deleted" });
+        }
+
+
+
         [HttpGet("users/{id}/tasks")]
         public async Task<IActionResult> GetUserTasks(int id)
         {

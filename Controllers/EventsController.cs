@@ -15,13 +15,11 @@ namespace TaskManager.API.Controllers
     {
         private readonly AppDbContext _context;
         private readonly NotificationService _notifications;
-        private readonly RealtimeService _realtime;
 
-        public EventsController(AppDbContext context, NotificationService notifications, RealtimeService realtime)
+        public EventsController(AppDbContext context, NotificationService notifications)
         {
             _context = context;
             _notifications = notifications;
-            _realtime = realtime;
         }
 
         private int GetUserId() =>
@@ -35,30 +33,6 @@ namespace TaskManager.API.Controllers
 
         private string GetRole() =>
             User.FindFirstValue(ClaimTypes.Role) ?? "Employee";
-
-
-        [HttpGet("my-stats")]
-        public async Task<IActionResult> GetMyStats()
-        {
-            var userId = GetUserId();
-            var orgId = GetOrgId();
-
-            var allEvents = await _context.Events
-                .Where(e => e.OrganizationId == orgId)
-                .ToListAsync();
-
-            var myResponses = await _context.EventResponses
-                .Where(r => r.UserId == userId)
-                .ToListAsync();
-
-            var attended = myResponses.Count(r => r.IsApproved);
-            var pending = allEvents.Count(e => !myResponses.Any(r => r.EventId == e.Id));
-
-            return Ok(new { attended, pending });
-        }
-
-
-
 
         [HttpGet]
         public async Task<IActionResult> GetEvents()
@@ -101,6 +75,27 @@ namespace TaskManager.API.Controllers
             return Ok(events);
         }
 
+        [HttpGet("my-stats")]
+        public async Task<IActionResult> GetMyStats()
+        {
+            var userId = GetUserId();
+            var orgId = GetOrgId();
+
+            var allEvents = await _context.Events
+                .Where(e => e.OrganizationId == orgId)
+                .Select(e => e.Id)
+                .ToListAsync();
+
+            var myResponses = await _context.EventResponses
+                .Where(r => r.UserId == userId)
+                .ToListAsync();
+
+            var attended = myResponses.Count(r => r.IsApproved);
+            var pending = allEvents.Count(eId => !myResponses.Any(r => r.EventId == eId));
+
+            return Ok(new { attended, pending });
+        }
+
         [HttpPost]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CreateEvent([FromBody] CreateEventRequest request)
@@ -125,13 +120,8 @@ namespace TaskManager.API.Controllers
             _context.Events.Add(ev);
             await _context.SaveChangesAsync();
 
-            await _realtime.NotifyEventCreated(orgId.Value, ev);
-            await _notifications.SendToOrganization(orgId.Value, userId, "📅 " + ev.Title,
-                $"Neue Veranstaltung am {ev.EventDate:dd.MM.yyyy HH:mm}");
-            // إشعار لكل موظفي المنظمة
             await _notifications.SendToOrganization(
-                orgId.Value,
-                userId,
+                orgId.Value, userId,
                 "📅 " + ev.Title,
                 $"Neue Veranstaltung am {ev.EventDate:dd.MM.yyyy HH:mm}"
             );
@@ -139,13 +129,11 @@ namespace TaskManager.API.Controllers
             return Ok(ev);
         }
 
-
         [HttpPost("{id}/respond")]
         public async Task<IActionResult> Respond(int id, [FromBody] RespondRequest request)
         {
             var userId = GetUserId();
 
-            // تحقق إذا رد مسبقاً — لا يسمح بالتعديل
             var existing = await _context.EventResponses
                 .FirstOrDefaultAsync(r => r.EventId == id && r.UserId == userId);
 
@@ -162,25 +150,20 @@ namespace TaskManager.API.Controllers
 
             await _context.SaveChangesAsync();
 
-            // إشعار للمدير
             if (request.Status == "Available")
             {
-                var ev = await _context.Events
-                    .FirstOrDefaultAsync(e => e.Id == id);
-
+                var ev = await _context.Events.FirstOrDefaultAsync(e => e.Id == id);
                 if (ev != null)
                 {
                     var respondingUser = await _context.Users.FindAsync(userId);
                     var adminIds = _context.Users
                         .Where(u => u.OrganizationId == ev.OrganizationId && u.Role == "Admin")
-                        .Select(u => u.Id)
-                        .ToList();
+                        .Select(u => u.Id).ToList();
 
                     foreach (var adminId in adminIds)
                     {
                         await _notifications.SendToUser(
-                            adminId,
-                            "✅ Neue Antwort",
+                            adminId, "✅ Neue Antwort",
                             $"{respondingUser?.Username} ist verfügbar für: {ev.Title}"
                         );
                     }
@@ -202,10 +185,11 @@ namespace TaskManager.API.Controllers
             response.IsApproved = true;
             await _context.SaveChangesAsync();
 
-            // إشعار للموظف المقبول
             var eventInfo = await _context.Events.FindAsync(id);
-            await _realtime.NotifyEventApproved(eventInfo?.OrganizationId ?? 0, new { eventId = id, userId, approved = true });
-            await _notifications.SendToUser(userId, "✅ Teilnahme bestätigt!", $"Ihre Teilnahme wurde bestätigt für: {eventInfo?.Title}");
+            await _notifications.SendToUser(
+                userId, "✅ Teilnahme bestätigt!",
+                $"Ihre Teilnahme wurde bestätigt für: {eventInfo?.Title}"
+            );
 
             return Ok(new { message = "Approved" });
         }
@@ -240,11 +224,6 @@ namespace TaskManager.API.Controllers
         }
     }
 
-
-
-
-
-
     public class CreateEventRequest
     {
         public string Title { get; set; } = string.Empty;
@@ -258,6 +237,4 @@ namespace TaskManager.API.Controllers
     {
         public string Status { get; set; } = "Available";
     }
-
-
 }

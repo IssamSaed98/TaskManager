@@ -15,13 +15,11 @@ namespace TaskManager.API.Controllers
     {
         private readonly AppDbContext _context;
         private readonly NotificationService _notifications;
-        private readonly RealtimeService _realtime;
 
-        public AdminController(AppDbContext context, NotificationService notifications, RealtimeService realtime)
+        public AdminController(AppDbContext context, NotificationService notifications)
         {
             _context = context;
             _notifications = notifications;
-            _realtime = realtime;
         }
 
         private int? GetOrgId()
@@ -49,43 +47,6 @@ namespace TaskManager.API.Controllers
 
             return Ok(users);
         }
-
-
-
-
-
-
-        [HttpDelete("users/{id}")]
-        public async Task<IActionResult> DeleteUser(int id)
-        {
-            var orgId = GetOrgId();
-
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Id == id && u.OrganizationId == orgId && u.Role == "Employee");
-
-            if (user == null) return NotFound(new { message = "User not found" });
-
-            // احذف المهام أولاً
-            var tasks = _context.Tasks.Where(t => t.UserId == id);
-            _context.Tasks.RemoveRange(tasks);
-
-            // احذف ردود الأحداث
-            var responses = _context.EventResponses.Where(r => r.UserId == id);
-            _context.EventResponses.RemoveRange(responses);
-
-            // احذف الاشتراكات
-            var subscriptions = _context.PushSubscriptions.Where(s => s.UserId == id);
-            _context.PushSubscriptions.RemoveRange(subscriptions);
-
-            // احذف المستخدم
-            _context.Users.Remove(user);
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = "User deleted successfully" });
-        }
-
-
 
         [HttpGet("users/{id}/tasks")]
         public async Task<IActionResult> GetUserTasks(int id)
@@ -118,10 +79,6 @@ namespace TaskManager.API.Controllers
             _context.Tasks.Add(task);
             await _context.SaveChangesAsync();
 
-            // 1. إرسال إشعار لحظي عبر SignalR (Realtime)
-            await _realtime.NotifyTaskAdded(orgId ?? 0, task);
-
-            // 2. إرسال إشعار دفع للموظف (Push notification)
             await _notifications.SendToUser(
                 request.UserId,
                 "📋 Neue Aufgabe",
@@ -130,7 +87,6 @@ namespace TaskManager.API.Controllers
 
             return Ok(task);
         }
-
 
         [HttpGet("organization")]
         public async Task<IActionResult> GetOrganization()
@@ -141,6 +97,31 @@ namespace TaskManager.API.Controllers
 
             if (org == null) return NotFound();
             return Ok(org);
+        }
+
+        [HttpDelete("users/{id}")]
+        public async Task<IActionResult> DeleteUser(int id)
+        {
+            var orgId = GetOrgId();
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == id && u.OrganizationId == orgId && u.Role == "Employee");
+
+            if (user == null) return NotFound(new { message = "User not found" });
+
+            var tasks = _context.Tasks.Where(t => t.UserId == id);
+            _context.Tasks.RemoveRange(tasks);
+
+            var responses = _context.EventResponses.Where(r => r.UserId == id);
+            _context.EventResponses.RemoveRange(responses);
+
+            var subscriptions = _context.PushSubscriptions.Where(s => s.UserId == id);
+            _context.PushSubscriptions.RemoveRange(subscriptions);
+
+            _context.Users.Remove(user);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "User deleted successfully" });
         }
     }
 
